@@ -1,6 +1,6 @@
 ## k8s
 ## 04-kubernetes应用快速入门
-```
+```sh
 
 kubectl --help
 
@@ -26,13 +26,13 @@ kube
 ```
 ## 标签和标签选择器
 
-```
+```sh
 kubectl get pods --show-labels
 ```
 
 ## myapp 为例
 
-```
+```sh
 ## 部署myapp
 kubectl run myapp  --image=ikubernetes/myapp:v1 --replicas=2
 
@@ -73,7 +73,7 @@ kubectl get svc
 
 ## 05-k8s资源清单定义入门
 
-```
+```sh
 RESTful
   GET, PUT, DELETE, POST,...
  
@@ -104,7 +104,7 @@ kubectl explain pods.spec.containers
 ```
 
 #### pod-demo
-```
+```yaml
 ## cat pod-demo.yml
 apiVersion: v1
 kind: Pod
@@ -140,7 +140,7 @@ kubectl delete -f pod-demo.yml
  
 
 ### 标签选择器
-```
+```sh
 kubectl get pods -l app --show labels
 kubectl label pods pod-demo release=stable
 
@@ -149,7 +149,7 @@ kubectl label pods pod-demo release=stable --overwrite
 kubectl get pods -l app --show-labels
 ```
 ### nodeSelector 节点标签选择器
-```
+```sh
 kubectl get nodes --show-labels
 kubectl label nodes node01.magedu.com disktype=ssd
 kubectl get nodes --show-labels
@@ -171,7 +171,7 @@ restartPolicy:
  
 ## 07-k8s Pod控制器应用进阶2
  
-```
+```sh
 kubectl explain pods.spec.containers.livenessProbe
  
 kubectl explain pods.spec.containers.livenessProbe.httpGet
@@ -180,7 +180,7 @@ kubectl explain pods.spec.containers.livenessProbe.httpGet
 ```
  
 #### 状态检测liveness-httpget-container
-```
+```yaml
 cat  liveness-httpget-pod
 apiVersion: v1
 kind: Pod
@@ -230,7 +230,7 @@ spec:
  
 ## 09-k8s Pod控制器2
  
-```
+```yaml
 ## 查看支持的更新策略
 kubectl explain deploy.spec.strategy
  
@@ -259,7 +259,9 @@ kubectl explain deploy.spec.strategy
           ports:
           - name: http
             containerPort: 80
- 
+```
+### 部署练习
+```sh
 ############
  
  kubectl apply -f deploy-demo.yml
@@ -298,7 +300,7 @@ kubectl explain deploy.spec.strategy
 ```
  
 #### daemonSet
-```
+``` yaml
 cat  ds-demo.yml
  
  apiVersion: apps/v1
@@ -325,14 +327,15 @@ cat  ds-demo.yml
            value: redis.default.svc.cluster.local
          - name: REDIS_LOG_LEVEL
            value: info
-           
+```
+### 练习           
+```sh
 ####
 kubectl apply -f ds-demo.yml
 kubectl get pods
 
 
 kubectl set image daemonsets filebeat-ds filebeat=ikubernetes/filebeat:5.6.6-alpine
-
 
 ```
  

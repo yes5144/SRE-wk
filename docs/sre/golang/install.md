@@ -1,6 +1,6 @@
 ## 环境配置
 
-```
+```sh
 https://www.jianshu.com/p/c45f8cdca214
 
 ### 下载go二进制文件 

@@ -3,7 +3,7 @@
 > saltstack采用c/s架构，角色分为master/slave，建议采用yum部署
 
 ### 安装
-```
+```sh
 ## 指定阿里云epel.repo, salt.repo 华为云 Centos-Base.repo
 yum install https://mirrors.aliyun.com/saltstack/yum/redhat/salt-repo-latest-2.el6.noarch.rpm
 
@@ -23,14 +23,14 @@ https://www.cnblogs.com/xiewenming/p/7716660.html
 ```
 
 #### 配置minion
-```
+```sh
 vim  /etc/salt/minion
 master: master-id
 id: hostname<weiyi>
 
 ```
 #### 管理 salt key
-```
+```sh
 salt-key  -L
 salt-key  -A
 salt-key  -D
@@ -131,7 +131,7 @@ https://docs.saltstack.com/en/latest/ref/states/backup_mode.html#file-state-back
 ```
 
 #### 组织主机节点
-```
+```sh
 vim  /etc/salt/master
 nodegroups:
   web: 'L@192.168.204.12,192.168.204.13'
@@ -164,7 +164,7 @@ salt node1 file.replace /ets/ssh/sshd_config pattern='#Port 22' repl='Port 22'
 #### SLS(salt state)
 
 #### Grain
-```
+```sh
 salt node1 grains.ls |wc -l
 salt node1 grains.item server_type
 salt node1 grains.item ip4_interfaces:eth0
@@ -176,7 +176,7 @@ salt node1 grains.item ip4_interfaces:eth0
 > 和Grain不同的是，Pillar是在Master上定义和存储的，是为了编写sls文件时便于引用而创建的，它的变量和赋值在执行之前就已经确定好了，和Minion的状态没有关系。
 
 ### salt-run 结果详情查看
-```
+```sh
 salt-run jobs.list_jobs   |grep -B20  '10.1.3'
 salt-run jobs.list_jobs   |grep -B20  'Python-2.7.3/bin/supervisorctl stop dj_gm_ser'
 salt-run jobs.lookup_jid  20191107102202302460

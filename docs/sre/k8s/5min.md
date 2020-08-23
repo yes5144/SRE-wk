@@ -1,6 +1,6 @@
 ## 每天5分钟
 
-```
+```sh
 ## pod是容器的集合，通常会将紧密相关的一组容器放到一个Pod中，同一个Pod中的所有容器共享IP地址和Port空间，也就是说它们在一个network namespace中。
 ## Pod是kubernetes调度的最小单位，同一Pod中的容器始终被一起调度。
 
@@ -276,7 +276,7 @@ k8s volume支持多种backend 类型，包括 emptyDir, hostPath, GCE Persistent
 ```
 
 ### 1，docker的安装
-```
+```sh
 ## 使用阿里云镜像加速安装下载docker-ce
 ## 参考链接：https://yq.aliyun.com/articles/110806
 
@@ -293,7 +293,7 @@ sudo service docker start
 ```
 
 ### 2，配置 docker 加速器
-```
+```sh
 ## 参考链接https://www.daocloud.io/mirror
 ## 该脚本可以将 --registry-mirror 加入到你的 Docker 配置文件 /etc/docker/daemon.json 中。适用于 Ubuntu14.04、Debian、CentOS6 、CentOS7、Fedora、Arch Linux、openSUSE Leap 42.1，其他版本可能有细微不同。更多详情请访问文档。
 curl -sSL https://get.daocloud.io/daotools/set_mirror.sh | sh -s http://f1361db2.m.daocloud.io
@@ -302,7 +302,7 @@ curl -sSL https://get.daocloud.io/daotools/set_mirror.sh | sh -s http://f1361db2
 
 ```
 ### 5，k8s基础命令
-```
+```sh
 ## https://kubernetes.io/docs/tutorials/
 
 ## 
@@ -339,7 +339,7 @@ kubectl  get  namespace
 ```
 
 ### kubectl 管理应用程序生命周期
-```
+```sh
 1、创建
 kubectl run nginx --replicas=3 --image=nginx:1.14 --port=80
 kubectl get deploy,pods
@@ -364,7 +364,7 @@ kubectl  delete svc/nginx-service
 ### kubectl创建
 
 
-```
+```sh
 
 kubectl create -f kubia-manual.yaml
 

@@ -1,5 +1,5 @@
 ## 自定义命令审查
-```
+```shell
 ## /etc/profile 添加
 #export PROMPT_COMMAND='logger -p local0.info "$(ifconfig | grep -E "eth|em" -A 1 | grep "172.2" | grep -oP "(?<=inet )[\d\.]+") $(who am i |awk "{print \$1\" \"\$2\" \"\$3\" \"\$4\" \"\$5}") [`pwd`] $(history1 | { read x cmd; echo "$cmd"; })"'
 export PROMPT_COMMAND='logger -p local0.info "$(hostname -i) $(who am i |awk "{print \$1\" \"\$2\" \"\$3\" \"\$4\" \"\$5}") [`pwd`] $(history 1 | { read x cmd; echo "$cmd"; })"'

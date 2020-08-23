@@ -1,27 +1,43 @@
-## install
-```
-## docker-compose
+## 1, war包安装Jenkins
 
-docker pull jenkins/jenkins:lts
+```sh
+## wget jenkins.war
+wget http://mirrors.jenkins.io/war-stable/latest/jenkins.war
 
-mkdir -p  /opt/apps/jenkins
-chmod 777 /opt/apps/jenkins
-docker run -it --name jenkinssci -v /opt/apps/jenkins:/var/jenkins_home \
--p 8080:8080 -p 50000:50000 -p 45000:45000 \
-jenkins/jenkins:lts
+## start jenkins （需要java环境，自行配置）
+mkdir -p /opt/apps/jenkins/
+export JENKINS_HOME=/opt/apps/jenkins/
+java -jar jenkins.war --httpPort=8080
 
-## 修改默认插件仓库 hudson.model.UpdateCenter.xml
-http://mirror.xmission.com/jenkins/updates/update-center.json
-
-https://kefeng.wang/2017/01/06/jenkins/
+## 浏览器访问 ip:8080
 
 ```
-### Jenkins 参数化构建
+
+## 2, 发邮件和钉钉
+```sh
+## 邮件插件
+Email Extension Template
+
+## 钉钉插件
+DingTalk
+```
+
+## 3, 新建一个自由风格的项目
+```sh
+## 所需插件
+Git Parameter
+Publish Over SSH
+DingTalk
+
+## 
+```
+
+## 4, Jenkins 参数化构建
 ```
 https://www.cnblogs.com/Dev0ps/p/9125232.html
 
 ```
-### Jenkins webhooks触发构建
+## 5, Jenkins webhooks触发构建
 ```
 ## svn
 https://blog.csdn.net/q13554515812/article/details/86651851
@@ -32,15 +48,8 @@ https://www.cnblogs.com/jianxuanbing/p/6835765.html
 
 ```
 
-### windows jenkins 安装
+## 6, 集成ldap
 ```
-https://blog.csdn.net/yuanfang_jlht/article/details/51577773
-
-## win7 下载在H盘，powershell 执行 java -jar jenkins.war
-## 访问127.0.0.1:8080
-[jenkins_notify_email002.html] was not found in $JENKINS_HOME/email-templates.
-默认$JENKINS_HOME在C:\Users\Admin\.jenkins
-
 ## jenkins
 http://www.eryajf.net/category/%E6%9C%AF%E4%B8%9A%E4%B8%93%E6%94%BB/%E8%87%AA%E5%8A%A8%E5%8C%96%E8%BF%90%E7%BB%B4/jenkins
 
@@ -55,6 +64,11 @@ https://kefeng.wang/2017/01/06/jenkins/
   
 ## Jenkins学习七：Jenkins的授权和访问控制  
 https://www.cnblogs.com/yangxia-test/p/4368778.html
+```
+
+## jenkins pipeline持续集成
+```
+https://www.cnblogs.com/xiao987334176/p/12427209.html
 ```
 
 ### Jenkins常用API
@@ -100,4 +114,33 @@ curl -X POST http://user:password@<Jenkins_URL>/queue/cancelItem?id=<Queue_Item>
 来源：CSDN 
 原文：https://blog.csdn.net/xiaosongluo/article/details/52797156 
 版权声明：本文为博主原创文章，转载请附上博文链接！
+```
+
+### docker方式安装Jenkins
+```sh
+## docker-compose
+
+docker pull jenkins/jenkins:lts
+
+mkdir -p  /opt/apps/jenkins
+chmod 777 /opt/apps/jenkins
+docker run -it --name jenkinssci -v /opt/apps/jenkins:/var/jenkins_home \
+-p 8080:8080 -p 50000:50000 -p 45000:45000 \
+jenkins/jenkins:lts
+
+## 修改默认插件仓库 hudson.model.UpdateCenter.xml
+http://mirror.xmission.com/jenkins/updates/update-center.json
+
+https://kefeng.wang/2017/01/06/jenkins/
+
+```
+
+### windows jenkins 安装
+```
+https://blog.csdn.net/yuanfang_jlht/article/details/51577773
+
+## win7 下载在H盘，powershell 执行 java -jar jenkins.war
+## 访问127.0.0.1:8080
+[jenkins_notify_email002.html] was not found in $JENKINS_HOME/email-templates.
+默认$JENKINS_HOME在C:\Users\Admin\.jenkins
 ```

@@ -1,13 +1,22 @@
-#### ssh配置文件
-```
+## ssh配置文件
+https://www.cnblogs.com/Spiro-K/p/6685943.html
+```sh
+## https://www.cnblogs.com/Spiro-K/p/6685943.html
 ## 修改默认ssh端口
-sed  -i 's@#Port 22@Port 60022@g' /etc/ssh/sshd_config
+sed  -i 's@#Port 22@Port 55522@g' /etc/ssh/sshd_config
 systemctl restart sshd
 
-```
-#### 系统最小化启动
+## sshd_config配置文件示例
 
-#### 防火墙指定ip限制
+
+```
+## 系统最小化启动
+```
+```
+
+## 防火墙指定ip限制
+```
+```
 
 #### ssh访问失败次数限制
 ```
@@ -42,13 +51,13 @@ nmap 10.1.3.20
 nmap -o 10.1.3.20 
 ```
 
-#### 命令审计
+## 命令审计
 ```
 https://blog.csdn.net/u010039418/article/details/81038744
 ```
 
-#### 命令历史收集
-```
+## 命令历史收集
+```sh
 ## vim  /etc/profile # 文末追加
 export PROMPT_COMMAND='logger -p local0.info "$(hostname -i) $(who am i |awk "{print \$1\" \"\$2\" \"\$3\" \"\$4\" \"\$5}") [`pwd`] $(history 1 | { read x cmd; echo "$cmd"; })"'
 
@@ -58,7 +67,7 @@ local0.*    /var/log/bash.log
 systemctl restart rsyslog
 ```
 
-### 蜜罐 T-Pot
+## 蜜罐 T-Pot
 ```
 https://imlonghao.com/53.html
 

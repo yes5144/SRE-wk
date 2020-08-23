@@ -1,6 +1,6 @@
 ## install
 
-```
+```sh
 yum install docker
 docker search gitlab
 docker pull gitlab/gitlab-ce

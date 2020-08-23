@@ -222,7 +222,7 @@ spec:
 
 kubectl apply -f kubernetes-dashboard.yaml
 
-## 默认不解释http
+## 默认不解析http
 访问地址：https://NodeIP:30001
 
 创建service account并绑定默认cluster-admin管理员集群角色：

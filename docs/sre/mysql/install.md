@@ -61,6 +61,13 @@ gunzip -c abc.sql.gz |mysql -uroot -p -vvv -P3306 --default-character-set=utf8 a
 --skip-add-locks       ---取消在每个表导出之前增加LOCK TABLES（默认存在锁）
 --skip-comments  
 ```
+## mysql基于binlog增量恢复
+```
+## 基于传统binlog
+mysqlbinlog 
+
+## 基于GTID二进制
+```
 
 ### kill 线程
 ```

@@ -1,6 +1,6 @@
 ## docker install
 
-```
+```sh
 ### 准备环境
 ### 同步时间
 echo '*/5 * * * * ntpdate time1.aliyun.com' >> /etc/crontab
@@ -45,7 +45,7 @@ pip install docker-compose
 ```
 
 ### 基础命令
-```
+```sh
 docker pull
 docker search 
 docker push
@@ -78,7 +78,7 @@ docker  import  test_name_tar  -  test/ubuntu:v1.0
 ### docker数据管理
 > 数据卷：容器内数据直接映射到本地主机环境 数据库容器：使用特定容器维护数据卷
 
-```
+```shell
 ## 在容器内创建一个数据卷
 docker run -d -P  --name web  -v /webapp  training/webapp  python app.py
 
@@ -102,7 +102,7 @@ docker  run --volumes-from dbdata2 -v ${pwd}:/backup busybox tar xvf /backup/bac
 ```
 
 ### 端口映射和容器互联
-```
+```sh
 ## -P Docker会随机映射一个49000-49900端口到容器开放的端口
 ## -p Host_port:Container_port指定端口
 

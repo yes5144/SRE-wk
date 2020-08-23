@@ -30,3 +30,10 @@ git clean 参数
 https://www.jianshu.com/p/cdd80dd15593
 
 ```
+### git show
+```
+git log
+git show 
+git show commitId
+
+```

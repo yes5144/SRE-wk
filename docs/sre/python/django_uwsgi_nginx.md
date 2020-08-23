@@ -1,5 +1,5 @@
 ## 创建py3虚拟环境
-```
+```sh
 yum install python-setuptools python-devel python-pip
 ## yum install python36 python36-devel
 pip install virtualenvwrapper
@@ -30,7 +30,7 @@ rmvirtualenv xxx: 删除 xxx 虚拟环境
 
 ```
 ## Centos7升级sqlite3
-```
+```sh
 ## 下载
 wget -O sqlite-autoconf-3260000.tar.gz   https://www.sqlite.org/2019/sqlite-autoconf-3270200.tar.gz
 
@@ -49,7 +49,7 @@ cd sqlite-autoconf-3260000
 
 
 ## nginx配置文件
-```
+```ini
 (DjangoDevops) [root@node1 DjangoDevops]# cat /etc/nginx/conf.d/DjangoDevops.conf
 # the upstream component nginx needs to connect to
 upstream djangodevops {
@@ -91,7 +91,7 @@ systemctl start nginx
 
 ## 下载代码，配置uwsui.ini
 
-```
+```sh
 cd /opt/www/github.com/
 
 git clone git@github.com:yes5144/DjangoDevops.git
@@ -116,7 +116,7 @@ django
 ```
 
 ## 启动uwsgi
-```
+```sh
 uwsgi --ini uwsgi.ini
 
 ```
