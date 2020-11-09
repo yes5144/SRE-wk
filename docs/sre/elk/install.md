@@ -3,3 +3,32 @@
 ```
 
 ```
+## Kibana dev tools
+```
+## 版本号信息
+GET /
+
+## 集群状态
+GET /_cluster/health?pretty
+
+## 集群各节点
+GET /_nodes/stats?pretty
+
+## 参考索引状态
+GET /_stats
+GET /my_index_1/_stats
+
+## 参考索引大小
+GET /_cat/indices
+GET /_cat/indices?v&s=pri.store.size
+GET /_cat/indices?v&s=pri.store.size:desc
+
+## 分片状态
+GET /_cat/shards
+GET /_cat/segments
+GET /_cat/plugins
+GET /_cat/master
+GET /_cat/nodes
+
+## 
+```
