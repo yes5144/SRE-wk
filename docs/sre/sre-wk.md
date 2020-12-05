@@ -1,3 +1,7 @@
+> 高可用性（避免单点故障）
+> 负载均衡（充分利用服务器性能）
+> 弹性伸缩（易于扩容和缩容）
+
 > 确立自己原则的“五步原则”
 >
 > 1、目标：我要什么？
@@ -8,7 +12,7 @@
 
 # 一、Linux
 
-## 1.1 hello world
+## 1.1 Hello World
 
 ```shell
 echo 'hello world'
@@ -52,6 +56,24 @@ netstat -anpo|more
 netstat -anpo|grep ESTABLISHED|awk '{$3!=0}{print $0}'
 netstat -anpo|grep ESTABLISHED|awk '$3!=0{print $0}'
 
+cat /proc/`pidof mysqld`/limits
+
+sudo du -s * | sort -nr | head      # 显示前10个占用空间最大的文件或目录
+sudo du --max-depth=1               # linux查找占空间最大的文件与目录  
+sudo find ./ -size -2048c -type f   # 查找小于2K的文件，- 表示小于
+
+## 
+
+pidstat -u -p  pidnum 3  ## 某pid 3秒内CPU使用情况
+
+-u -r 内存  -d 磁盘
+
+iostat  -d  2 3
+
+## ip 按照数字排序
+sort -t'.' -k1,1n -k2,2n -k3,3n -k4,4n ip.txt
+
+
 ```
 
 
@@ -61,29 +83,41 @@ netstat -anpo|grep ESTABLISHED|awk '$3!=0{print $0}'
 ```sh
 #!/bin/bash
 #
-## 中文支持
+## 1 close selinux
+setenforce 0
+sed -i /SELINUX/s/enforcing/disabled/g /etc/selinux/config
+
+## 2 close iptables firewalld
+systemctl stop iptables.service
+systemctl stop firewalld.service
+
+## 3 中文支持
 cat  /etc/sysconfig/i18n
 echo  'LANG="zh_CN.UTF-8"'   > /etc/sysconfig/i18n
 echo  'LC_ALL="zh_CN.UTF-8"' >> /etc/sysconfig/i18n
 source  /etc/sysconfig/i18n
 
-########
+ #######
 cat   /etc/locale.conf
 echo  'LANG="zh_CN.UTF-8"' > /etc/locale.conf
-
 source /etc/locale.conf
 
-#### 设置timezone的时区
-##sudo timedatectl set-timezone 'Asia/Shanghai'
-## 或者
+ #### 设置timezone的时区
+ ##sudo timedatectl set-timezone 'Asia/Shanghai'
+ ## 或者
 echo "Asia/Shanghai" > /etc/timezone
 
-## 设置时间
+## 4 设置时间
 rm -rf /etc/localtime
 ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
-## repo 
-yum install -y sysstat tree net-tools wget curl vim lrzsz zip unzip python-pip python-devel python36 python36-devel python36-pip 
+## 5 sync time
+ntpdate times.aliyun.com
+echo '# time sync to aliyun 2017-08-21' >> /var/spool/cron/root
+echo '*/5 * * * * /usr/sbin/ntpdate times.aliyun.com >/dev/null 2>&1' >>/var/spool/cron/root
+
+## 6 base.repo epel.repo docker.repo
+yum install -y sysstat tree net-tools wget curl vim lrzsz zip unzip python-pip python-devel python36 python36-devel python36-pip bash-completion
 
 mkdir  /etc/yum.repos.d/default
 mv /etc/yum.repos.d/*.repo /etc/yum.repos.d/default/
@@ -94,35 +128,320 @@ wget -O /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-7.repo
 yum install -y yum-utils device-mapper-persistent-data lvm2
 yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
 
+## 7 添加 www mysql (no home)
+useradd myadmin && echo 'yourpasswd123#@!' |passwd myadmin --stdin
+useradd www -M -s /sbin/nologin 
+useradd mysql -M -s /sbin/nologin
 
-## 
+## 8 sshd 配置优化
+\cp /etc/ssh/sshd_config{,.bak}
+sed -i 's@#UseDNS yes@UseDNS no@g;s@^GSSAPIAuthentication yes@GSSAPIAuthentication no@g' /etc/ssh/sshd_config
+### 禁用root远程，添加myadmin sudoers
+#sed -i 's@#PermitRootLogin yes@PermitRootLogin no@g' /etc/ssh/sshd_config
+#sed -i 's@#Port 22@Port 52222@g' /etc/ssh/sshd_config
+/etc/init.d/sshd reload
 
-## sshd 配置
+## 9 系统参数优化
+　　#1. 计算 fdmax = 物理内存大小(m为单位) / 4 * 256  假设内存为8G,fdmax=524288
+　　#2. 执行命令: echo fs.file-max=524288 >> /etc/sysctl.conf
+　　#3. 执行命令: sysctl -p 
+　　#4. 执行命令: echo  * soft nofile  524286 >> /etc/security/limits.conf
+　　#5. 执行命令: echo  * hard nofile 524287 >> /etc/security/limits.conf
+echo fs.file-max=524288 >> /etc/sysctl.conf
+sysctl -p 
 
+echo  '* soft nofile  524286' >> /etc/security/limits.conf
+echo  '* hard nofile  524287' >> /etc/security/limits.conf
 
-## 禁用root
+# /etc/supervisord.conf
+# minfds=1048576
 
-## 系统参数优化
+cat >> /etc/sysctl.conf << EOF
+# https://www.cnblogs.com/kgdxpr/p/3342102.html
 
-## 安全问题
+# source configuration
+# /sbin/sysctl -p
+#######禁用ipv6#######
+# 禁用整个系统所有接口的IPv6
+net.ipv6.conf.all.disable_ipv6 = 1
+# 禁用某一个指定接口的IPv6(例如：eth0, lo)
+net.ipv6.conf.lo.disable_ipv6 = 1
+net.ipv6.conf.eth0.disable_ipv6 = 1
 
+#######################
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_tw_recycle = 1
+net.ipv4.ip_local_port_range = 1024 65000
+net.ipv4.tcp_max_syn_backlog = 8192
+net.ipv4.tcp_max_tw_buckets = 5000
+net.ipv4.tcp_max_syn_backlog = 65536
+net.core.netdev_max_backlog =  32768
+net.core.somaxconn = 32768
+net.core.wmem_default = 8388608
+net.core.rmem_default = 8388608
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_timestamps = 0
+net.ipv4.tcp_synack_retries = 2
+net.ipv4.tcp_syn_retries = 2
+net.ipv4.tcp_mem = 94500000 915000000 927000000
+net.ipv4.tcp_max_orphans = 3276800
 
-##
+kernel.sysrq = 0
+kernel.core_uses_pid = 1
+kernel.msgmnb = 65536
+kernel.msgmax = 65536
+kernel.shmmax = 68719476736
+kernel.shmall = 4294967296
+vm.swappiness=10
+EOF
+
+sysctl -p 
+
+## 10 安全问题  把暴力登录的ip 追加到/etc/hosts.deny
+cat >/bin/ssh_scan.sh <<EOF
+#! /bin/bash
+cat /var/log/secure|awk '/Failed/{print $(NF-3)}'|sort|uniq -c|awk '{print $2"="$1;}' > /tmp/black.txt
+DEFINE="10"
+for i in `cat  /tmp/black.txt`
+do
+    IP=`echo $i |awk -F= '{print $1}'`
+    NUM=`echo $i|awk -F= '{print $2}'`
+    if [ $NUM -gt $DEFINE ];then
+         grep $IP /etc/hosts.deny > /dev/null
+         if [ $? -gt 0 ];then
+            echo "sshd:$IP" >> /etc/hosts.deny
+         fi
+    fi
+done
+EOF
+## 加入定时任务
+echo '####SSH_Failed_Access_Scan####' >>/etc/crontab
+echo '*/1 * * * * root sh /bin/ssh_scan.sh' >> /etc/crontab
+
+## 11 重要文件加锁，禁止修改如 /etc/passwd /etc/shadow /etc/sudoers /root/.ssh/authorized_keys
+chattr +i  /etc/passwd /etc/group /etc/shadow /etc/sudoers /root/.ssh/authorized_keys
+# lsattr 
+# chattr -i file
+# chattr -R +i dir
+
+## 12 预留端口需要吗？
+echo "39003-39004"  > /proc/sys/net/ipv4/ip_local_reserved_ports
 ```
 
 ### 1.3.1 防火墙iptables
 
 ```sh
-iptables
+cat >/bin/iptables.sh <<EOF
+#!/bin/bash
+iptables -F
+iptables -t nat -F
+
+#### Below are the basal iptables config, normally need not be modified #######
+iptables -A INPUT -s 127.0.0.1 -d 127.0.0.1 -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p icmp --icmp-type echo-reply -j ACCEPT
+iptables -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+iptables -A INPUT -p udp --source-port 53 -j ACCEPT
+iptables -A INPUT -p tcp --dport 62222 -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+##### Below are the Appalication related iptables config #######
+iptables -A INPUT -s 10.0.5.0/24 -j ACCEPT
+
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+
+iptables -A INPUT -j DROP
+iptables -A FORWARD -j DROP
+EOF
+
+systemctl enable iptables.service
+systemctl restart iptables.service
+sh  /bin/iptables.sh
+
+echo 'sh /bin/iptables.sh' >> /etc/rc.local
+
+
+####
+## iptables防火墙
+
+iptables最常用的规则示例
+https://www.cnblogs.com/EasonJim/p/8339162.html
+
+### 1、删除已有规则
+iptables -F
+iptables –flush
+
+### 2、设置链的默认策略
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+##### iptables -P OUTPUT DROP ## 一般不对出站的数据包做限制
+
+
+### 3、丢弃来自IP地址x.x.x.x的包
+iptables -A INPUT -s x.x.x.x -j DROP
+
+#### 3.1、阻止来自IP地址x.x.x.x eth0 tcp的包
+iptables -A INPUT -i eth0 -s x.x.x.x -j DROP
+iptables -A INPUT -i eth0 -p tcp -s x.x.x.x -j DROP
+
+### 4、允许所有来自外部的SSH连接请求，即只允许进入eth0接口，并且目标端口为22的数据包
+iptables -A INPUT -i eth0 -p tcp --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
+
+### 5、仅允许来自于192.168.100.0/24域的用户的ssh连接请求
+iptables -A INPUT -i eth0 -p tcp -s 192.168.100.0/24 --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
+
+### 6、允许所有来自web - http的连接请求
+iptables -A INPUT -i eth0 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+
+iptables -A INPUT -i eth0 -p tcp --dport 443 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp --sport 443 -m state --state ESTABLISHED -j ACCEPT
+
+### 7、使用multiport 将多个规则结合在一起（允许所有ssh,http,https的流量访问）
+iptables -A INPUT -i eth0 -p tcp -m multiport --dports 22,80,443 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp -m multiport --sports 22,80,443 -m state --state ESTABLISHED -j ACCEPT
+
+### 8、负载平衡传入的网络流量
+iptables -A PREROUTING -i eth0 -p tcp --dport 443 -m state --state NEW -m nth --counter 0 --every 3 --packet 0 -j DNAT --to-destination 192.168.1.101:443
+iptables -A PREROUTING -i eth0 -p tcp --dport 443 -m state --state NEW -m nth --counter 0 --every 3 --packet 1 -j DNAT --to-destination 192.168.1.102:443
+iptables -A PREROUTING -i eth0 -p tcp --dport 443 -m state --state NEW -m nth --counter 0 --every 3 --packet 2 -j DNAT --to-destination 192.168.1.103:443
+
+
+### 9、允许外部主机ping内部主机
+iptables -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+iptables -A OUTPUT -p icmp --icmp-type echo-reply -j ACCEPT
+
+### 10、允许来自网络192.168.101.0/24的rsync连接请求
+iptables -A INPUT -i eth0 -p tcp -s 192.168.101.0/24 --dport 873 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp --sport 873 -m state --state ESTABLISHED -j ACCEPT
+
+### 11、MySQL数据库与web服务跑在同一台服务器上。有时候我们仅希望DBA和开发人员从内部网络（192.168.100.0/24）直接登录数据库，可尝试以下命令：
+iptables -A INPUT -i eth0 -p tcp -s 192.168.100.0/24 --dport 3306 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp --sport 3306 -m state --state ESTABLISHED -j ACCEPT
+
+### 12、将来自422端口的流量全部转到22端口。  这意味着我们既能通过422端口又能通过22端口进行ssh连接。启用DNAT转发。
+
+##### 系统开启转发功能
+echo 1 > /proc/sys/net/ipv4/ip_forward
+iptables -t nat -A PREROUTING -p tcp -d 192.168.102.37 --dport 422 -j DNAT --to 192.168.102.37:22
+
+#####除此之外，还需要允许连接到422端口的请求 
+iptables -A INPUT -i eth0 -p tcp --dport 422 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp --sport 422 -m state --state ESTABLISHED -j ACCEPT
+
+
+
+iptables 四表五链
+https://www.cnblogs.com/zhujingzhi/p/9706664.html
+
 ```
 
 ### 1.3.2 防火墙firewired
 
 ```sh
-
+firewall-cmd --list-all
+firewall-cmd --add-ports=9000/tcp --permernent
+firewall-cmd --reload
 ```
 
 
+
+### 1.3.3 cc 和ddos
+
+```sh
+#!/bin/bash
+#
+# date: 2018-04-12
+# author: channel
+#
+if [[ -z $1 ]]; then
+	num=50
+else
+	num=$1
+fi
+
+# cd where is the shell
+cd $(cd $(dirname $BASH_SOURCE) && pwd)
+
+function check(){
+
+	iplist=`netstat -an |grep ^tcp.*.80|egrep -v 'LISTEN|127.0.0.1'|awk -F "[ ]+|[:]" '{print $4}'`
+	if [[ ! -z $iplist ]];
+	then
+		> ./iplist/black_ip.txt
+		for black_ip in $iplist
+		do
+			# exclude_ip=`echo $black_ip |awk -F "." '{print "$1"."$2"."$3"}'`
+			# grep -q $excude_ip ./white_ip.txt
+			grep -q $black_ip ./white_ip.txt
+			if [[ $? -eq 0 ]]; then
+				echo "$black_ip (white_ip)" >>./black_ip.txt
+			else
+				echo $black_ip >> ./black_ip.txt
+				iptables -nL |grep $black_ip || (iptables -I INPUT -s £$black_ip -j DROP & echo "$black_ip exist" )
+			fi
+		done
+		if [[ `cat ./sendmail` == 1 ]];then sendmsg;fi
+	fi
+
+}
+
+function sendmsg(){
+
+	netstat -nutlp |grep "sendmail" >/dev/null 2>&1 || /etc/init.d/sendmail start >/dev/null ;
+	echo -e "From: 1006793841@qq.com\nTo:22222222222@qq.com\nSubject:Someone Attacking you system"
+	cat ./black_ip.txt >>./message
+	/usr/sbin/sendmail -f sendaddr@qq.com -t recieve_add@qq.com -i <./message
+	>./sendmail
+
+}
+
+
+while true
+do
+	check
+	sleep 10
+done
+```
+
+
+
+```sh
+#!/bin/bash
+#
+# date: 2018-4-11
+# author: channel
+#
+FilePath="access.log"
+awk '{print $1}' $FilePath |sort -rn |uniq -c >ip_count.log
+cat ip_count.log |while read text
+do
+	echo $text
+	count= echo $text |awk '{print $1}'
+	ip= echo $test |awk '{print $2}'
+	if [ $count -gt 20 ]
+	then
+		if iptables -L |grep $ip
+		then
+			echo "ip address exists iptables, no add again"
+		else
+			echo "add $ip address in iptables"
+			iptables -A INPUT -s $ip -j DROP && echo $ip >> ip_drop.log
+			/etc/init.d/iptables save &> /dev/null
+			/etc/init.d/iptables restart &>/dev/null
+		fi
+	else
+		echo "no ip will be add iptables"
+	fi
+done
+
+# remember to create a crontab task for this shell
+```
 
 
 
@@ -216,6 +535,16 @@ server {
         access_log  /opt/log/nginx/monitor.xxxx.com.log;
 }
 
+## 防盗链 在nginx的conf中配置
+location ~.*\.(gif|jpg|png|flv|swf|rar|zip)$
+{
+    valid_referers none blocked zi.com *.zi.com;
+    if($invalid_referer)
+    {
+        #return 403;
+        rewrite ^/ http://www.zi.com/403.jpg;
+    }    
+}
 ```
 
 ## 2.3 vhost
@@ -228,9 +557,74 @@ server {
 
 
 
+## 2.5 http 登录验证
+
+```ini
+# https://www.cnblogs.com/clsn/p/9950892.html
+[root@clsn nginx]# yum install httpd-tools -y
+[root@clsn nginx]# htpasswd  -c /usr/local/awstats/wwwroot/nmtui.passwd nmtui
+New password:
+Re-type new password:
+Adding password for user nmtui
+[root@clsn nginx]# chown www.www  /usr/local/awstats/wwwroot/nmtui.passwd
+[root@clsn nginx]# chmod 600  /usr/local/awstats/wwwroot/nmtui.passwd
+
+[root@clsn nginx]# vim  awstats.nmtui.com.conf
+server
+{
+    listen 80;
+    server_name awstats.nmtui.com;
+    index awstats.nmtui.com.html;
+    root /www/wwwroot/awstats/;
+    auth_basic "clsn training";
+    auth_basic_user_file /usr/local/awstats/wwwroot/nmtui.passwd;
+    access_log  /www/wwwlogs/301-clsn.io.log;
+    error_log  /www/wwwlogs/301-clsn.io-error.log;
+}
+[root@clsn nginx]# /etc/init.d/nginx  reload
+```
+
+## 2.9 nginx 调优
+
+```ini
+Nginx调优
+https://www.cnblogs.com/zhichaoma/p/7989655.html
+    1.隐藏 Nginx 版本号
+    2.隐藏 Nginx 版本号和软件名
+    3.更改 Nginx 服务的默认用户
+    4.优化 Nginx worker 进程数
+    5.绑定 Nginx 进程到不同的 CPU 上
+    6.优化 Nginx 处理事件模型
+    7.优化 Nginx 单个进程允许的最大连接数
+    8.优化 Nginx worker 进程最大打开文件数
+    9.优化服务器域名的散列表大小
+    10.开启高效文件传输模式
+    11.优化 Nginx 连接超时时间
+    12.限制上传文件的大小
+    13.FastCGI 相关参数调优
+    14.配置 Nginx gzip 压缩
+    15.配置 Nginx expires 缓存
+    16.优化 Nginx日志(日志切割)
+    17.优化 Nginx 站点目录
+    18.配置 Nginx 防盗链
+    19.配置 Nginx 错误页面优雅显示
+    20.优化 Nginx 文件权限
+    21.Nginx 防爬虫优化
+    22.控制 Nginx 并发连接数
+    23.集群代理优化
+
+Nginx 性能调优
+https://www.jianshu.com/p/024b33d1a1a1
+
+```
+
+
+
 # 三、MySQL
 
 ## 3.1 基础操作命令
+
+### 3.1.1 添加索引
 
 ```sql
 ## 1.添加PRIMARY KEY（主键索引） 
@@ -246,11 +640,63 @@ mysql>ALTER TABLE `table_name` ADD INDEX index_name ( `column1`, `column2`, `col
 
 ```
 
+### 3.1.2 复制表到新表
+
+```sql
+方法一：
+拷贝表1的全部数据到表2
+INSERT INTO table2 SELECT * FROM table1 
+
+拷贝第n条
+INSERT INTO table2 SELECT * FROM table1  WHERE id=5
+
+拷贝指定字段
+INSERT INTO table2 ( name , price ) SELECT name , price  FROM table1  WHERE id=5
+
+方法二：
+创建表3， 同时拷贝表1的数据和结构到表3
+CREATE TABLE table3 SELECT * FROM table
+
+方法三：
+创建表4，只拷贝表1的结构到表4，不拷贝数据
+CREATE TABLE table4 LIKE table
+
+版权声明：本文为CSDN博主「一筐大白菜啊」的原创文章，遵循 CC 4.0 BY-SA 版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/sphinx1122/article/details/84402854
+```
+
+### 3.1.3 部分配置文件参考
+
+```ini
+[client]
+default-character-set=utf8
+
+[mysql]
+default-character-set=utf8
+
+[mysqld]
+init_connect='SET collation_connection = utf8_unicode_ci'
+init_connect='SET NAMES utf8'
+character-set-server=utf8
+collation-server=utf8_unicode_ci
+skip-character-set-client-handshake
+
+#skip-grant-tables
+### MySQL5.6
+#UPDATE mysql.user SET Password = password('123456') WHERE User = 'root' ; 
+### MySQL5.7
+#update mysql.user set authentication_string=password('123qwe') where user='root' and Host = 'localhost';
+
+————————————————
+版权声明：本文为CSDN博主「o尐猫o」的原创文章，遵循 CC 4.0 BY-SA 版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/dy_miao/article/details/91461581
+```
+
 
 
 ## 3.2 备份和还原
 
-### 3.2.1 mysqldump
+### 3.2.1 mysqldump 备份
 
 ```sh
 https://www.cnblogs.com/chenmh/p/5300370.html
@@ -272,15 +718,31 @@ mysqldump -uroot -proot --no-create-info --databases db1 --tables a1 --where="id
 
 ## 6.只导出表结构不导出数据，--no-data
 mysqldump -uroot -proot --no-data --databases db1 >/tmp/db1.sql
+
+### 
+PATH="/application/mysql/bin:$PATH"
+DBPATH=/server/backup
+MY_USER=root
+MY_PASS=old123
+SOCKET=/data/3306/mysql.sock
+MY_CMD="mysql -u$MY_USER -p$MY_PASS -S $SOCKET"
+MY_DUMP="mysqldump -u$MY_USER -p$MY_PASS -S$SOCKET"
+
+[ ! -d "$DBPATH" ] && mkdir -p $DBPATH
+
+for dbname in `$MYCMD -e "show databases;" |sed '1,2d' |egrep -v "mysql|schema"`
+do
+	$MYDUMP $dbname |gzip > $DBPATH/${dbname}_$(date +%F).sql.gz
+done
 ```
 
 
 
 
 
-### 3.2.2 mysql
+### 3.2.2 mysql 还原
 
-### 3.2.3 mysqlbinlog
+### 3.2.3 mysqlbinlog 解析binlog
 
 ```sh
 #https://www.cnblogs.com/michael9/p/11923483.html
@@ -314,6 +776,60 @@ python binlog2sql.py -h127.0.0.1 -P3306 -uadmin -p'admin' -dtest -ttest3 --start
 
 
 
+### 3.2.5 xtrabackup
+
+```sh
+# this is a example about xtrabackup
+#
+# coding:utf8
+# 步骤
+# 全量备份 -> 增量1 -> 增量2 -> 
+
+# 全量备份00，假设全量文件是/backup_file/00
+innobackupex --user=root --password='123123' /backup_file/
+
+# 增量1, 文件是/backup_file/11
+innobackupex --incremental /backup_file --incremental-basedir=/backup_file/00
+
+# 增量2, 文件是/backup_file/22
+innobackupex --incremental /backup_file --incremental-basedir=/backup_file/11
+
+##################
+# 整合# 
+# 准备全量00
+innobackupex --apply-log --redo-only /backup_file/00
+
+# 准备11
+innobackupex --apply-log --redo-only /backup_file/00/ --incremental-dir=/backup_file/11
+
+# 准备22
+innobackupex --apply-log --redo-only /backup_file/00/ --incremental-dir=/backup_file/22
+
+#################
+#
+# 恢复数据
+innobackupex --copy-back /backup_file/00
+
+# 修改属主、属组
+chown -R mysql.mysql /usr/local/mysql/data
+
+# 启动mysql
+/etc/init.d/mysqld start
+
+#### 5，恢复binlog中的部分文件
+
+mysqlbinlog mysql-bin.000002 >/tmp/abc.sql
+#
+# 暂时关闭binlog记录
+mysql> set sql_log_bin=0;
+mysql> source /tmp/abc.sql;
+#
+# 恢复完成，打开binlog记录
+mysql> set sql_log_bin=1
+```
+
+
+
 ## 3.3 主从复制 
 
 
@@ -328,6 +844,12 @@ python binlog2sql.py -h127.0.0.1 -P3306 -uadmin -p'admin' -dtest -ttest3 --start
 
 
 ### 3.3.1 传统binlog
+
+```ini
+##
+```
+
+
 
 ### 3.3.2 基于GTID（建议使用mysql-5.6.5以上版本）
 
@@ -349,13 +871,29 @@ MySQL GTID 主从复制的原理及配置 https://blog.51cto.com/yangshufan/2136
 
 ```
 
+## 3.9 MySQL参数调优
+
+```ini
+https://www.cnblogs.com/zhichaoma/p/7992525.html
+
+ 连接相关参数
+
+ 文件相关参数
+
+ 缓存相关参数 
+
+ MyISAM参数
+
+ InnoDB参数
+```
+
 
 
 # 四、Django
 
 
 
-## 4.0 创建虚拟环境（virtualenv的安装和使用）
+## 4.0 py虚拟环境（virtualenv的使用）
 
 ```sh
 ## centos7安装
@@ -390,8 +928,6 @@ pip install --ignore-installed pycurl
 
 
 
-
-
 ## 4.1 Django路由
 
 4.1.1 Django哈哈
@@ -401,6 +937,21 @@ python manage.py startapp test
 python manage.py makemigrations
 python manage.py migrate
 python manage createsuperuser
+
+2.0后urls文件内的path好像不支持正则了 
+
+需要用正则匹配的 需要
+
+from django.urls import re_path
+
+urlpatterns = [
+    re_path('index-(?P<nid>\d)-(?P<uid>\d)', views.index)
+}
+————————————————
+版权声明：本文为CSDN博主「Reisen稻叶」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/u011410397/java/article/details/81780495
+
+be determined to have a great day, and you will
 
 ```
 
@@ -511,7 +1062,7 @@ https://docs.saltstack.com/en/latest/ref/states/backup_mode.html#file-state-back
 
 ```
 
-## 5.2 saltapi 安装部署
+## 5.2 salt-api 安装部署
 
 ```sh
 ## 生成证书
@@ -527,6 +1078,51 @@ saltapi222@##$$##
 
 ###############
 openssl 生成加密文件
+
+### 222
+# 1 install
+yum install -y salt-api
+
+# 2 adduser
+useradd -M -s /sbin/nologin salt echo "salt@@123" |passwd --stdiin salt
+
+# 3 配置证书文件
+mkdir /etc/ssl/private
+## 生成key
+openssl genrsa -out /etc/ssl/private/key.pem 4096
+## 生成证书
+openssl req -new -x509 -key /etc/ssl/private/key.pem -out /etc/ssl/private/cert.pem -days 1826
+
+## 为salt-api单独配置文件
+cat >> /etc/salt/master.d/salt-api.conf<<EOF
+external_auth:
+    pam:
+        salt:
+            - .*
+            - '@whell'
+            - '@runner'
+            - '@jobs'
+
+rest_cherrypy:
+    port: 58080
+    host: 0.0.0.0
+    ssl_crt: /etc/ssl/private/cert.pem
+    ssl_key: /etc/ssl/private/key.pem
+    # disable_ssl: True
+EOF
+
+# 重启master 和salt-api
+service salt-master restart
+service salt-api restart
+4 API 测试验证
+获取token
+curl -k https://127.0.0.1:8080/login -H "Accept: application/json" -d username='salt' -d password='salt@@123' -d eauth='pam' |jq .
+
+curl -k https://localhost:8080/ -H "Accept: application/json" -H "X-Auth-Token: ff3k3k23k2332" -d client='local' -d tgt='192.168.204.160' -d fun="cmd.run" -d arg="uname -a" |jq .
+
+jq JSON格式化输出
+yum install -y jq 
+cat json_test.txt |jq .
 ```
 
 ### 5.2.1 salt-api 使用
@@ -542,6 +1138,92 @@ https://honglimin.cn/saltstack/08_saltapi_doc.html
 
 
 
+## 5.3 salt-ssh 批量部署minion
+
+```sh
+yum install salt-ssh
+
+
+```
+
+
+
+## 5.8 ansible
+
+```sh
+# ansible 常用模块
+
+根据模块功能分类为：云模块、命令模块、数据库模块、文件模块、资产模块、消息模块、监控模块、网络模块、通知模块、包管理模块、源码控制模块、系统模块、单元模块、web设施模块、Windows模块。
+
+## 安装ansible
+
+yum install ansible -y
+
+rpm -ql ansible
+
+/etc/ansible
+/etc/ansible/ansible.cfg
+/etc/ansible/hosts
+/etc/ansible/roles
+...
+
+ansible -h
+
+ansible --version
+
+cat >/etc/ansible/hosts << EOF
+
+[test]
+192.168.0.211
+
+# children
+[mfs:children]
+mfs_master
+mfs_client
+mfs_node
+
+[mfs_master]
+192.168.204.11
+
+[mfs_client]
+192.168.204.21
+
+[mfs_node]
+192.168.204.31
+
+EOF
+
+这里仅仅介绍一些最常用的模块；
+
+### 收集客户机的信息
+ansible all -m setup
+
+### ping 模块
+ansible all -m ping
+
+### 执行命令
+ansible -i /etc/ansible/hosts test -u root -m command -a 'ls -l /root/' -k
+
+# 简化如下
+ansible test -a 'ls -l /root/' -k
+
+
+### file 模块
+
+ansible test -m file -a "src=/etc/fstab dest=/tmp/fstab state=link"
+
+ansible test -m file -a "path=/tmp/fstab state=absent"
+
+ansible test -m file -a "path=/tmp/test state=touch"
+
+ansible test -m file -a "path=/tmp/d2 state=directory owner=root group=root mode=700"
+
+ansible test -m command -a "ls /tmp -lh"
+
+```
+
+
+
 # 六、gitlab
 
 ## 6.1 git命令入门
@@ -551,6 +1233,81 @@ https://honglimin.cn/saltstack/08_saltapi_doc.html
 cd "$WORKSPACE"
 git checkout $GitBranch
 git diff $from_commitid $to_commitid --name-only>compile_list.txt
+
+## 获取commit id
+git log  --pretty="%s"  -2
+
+git log  --pretty="%H"  -2
+git log  --pretty="%h"  -2
+
+## 某文件的修改记录
+git log filename   # 查看某个文件的commit记录
+git log -p filename    # 查看文件每次提交的diff
+git log --pretty=oneline filename # 列出文件的所有改动历史
+git show 提交生成的一次哈希值 filename  # 只查看某次提交的文件变化
+
+## 取消add后的修改
+git reset HEAD + 文件名
+
+## 取消commit后的修改
+git checkout commitId 文件名
+
+```
+
+
+
+## 6.2 gitlab的安装使用
+
+```sh
+##
+```
+
+
+
+## 6.8 Jenkins CI/CD
+
+```sh
+## docker 安装 Jenkins
+docker search jenkins
+docker pull jenkins/jenkins:lts
+mkdir  /opt/apps/jenkins -p
+chmod  777   /opt/apps/jenkins
+ll /opt/apps/
+docker run -it --name wk-jenkinsci -v /opt/apps/jenkins:/var/jenkins_home -p 8080:8080 -p 50000:50000 -p 45000:45000 jenkins/jenkins:lts
+
+## 查看启动状态
+dockeer ps
+
+## 查看启动端口
+netstat -ntlp |grep 8080
+
+cd /opt/apps/jenkins/
+
+vim copy_reference_file.log
+## 升级站点项的的地址配置文件
+cat hudson.model.UpdateCenter.xml
+## 备份配置文件
+cp  hudson.model.UpdateCenter.xml  hudson.model.UpdateCenter.xml.default
+## 【系统管理】【管理插件】【高级】升级站点项的地址修改成，
+## 手动修改配置文件或后台修改http://ip:8080/pluginManager/advanced
+grep center.json *
+hudson.model.UpdateCenter.xml:    <url>https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates/update-center.json</url>
+
+## ldap配置系列二：jenkins集成ldap
+https://www.cnblogs.com/zhaojiedi1992/p/zhaojiedi_liunx_52_ldap_for_jenkins.html
+
+## jenkins集成OpenLDAP认证
+https://www.cnblogs.com/37Y37/p/9430272.html
+
+## Jenkins学习七：Jenkins的授权和访问控制  
+https://www.cnblogs.com/yangxia-test/p/4368778.html
+
+## Jenkins学习四：Jenkins 邮件配置
+https://www.cnblogs.com/yangxia-test/p/4366172.html
+
+## Jenkins 持续集成综合实战
+https://kefeng.wang/2017/01/06/jenkins/
+
 ```
 
 
@@ -587,6 +1344,23 @@ pip3 install docker-compose
 curl -L https://raw.githubusercontent.com/docker/compose/1.27.4/contrib/completion/bash/docker-compose > /etc/bash_completion.d/docker-compose
 ```
 
+### docker base
+
+```
+#1.停止所有的container，这样才能够删除其中的images：
+docker stop $(docker ps -a -q)
+
+#如果想要删除所有container的话再加一个指令：
+docker rm $(docker ps -a -q)
+
+#2.查看当前有些什么images
+docker images
+
+#3.删除images，通过image的id来指定删除谁
+docker rmi <image id>
+
+```
+
 
 
 ### dockers volumes
@@ -621,13 +1395,13 @@ docker cp  96f7f14e99ab:/www /tmp/
 
 ## 7.2 docker-compose
 
-### docker flask
+### 7.2.1 docker flask
 
 ```ini
 https://www.cnblogs.com/soymilk2019/p/11590117.html
 ```
 
-### docker nginx
+### 7.2.2 docker nginx
 
 ```sh
 docker run --name testnginx  -p 888:80  -v /mnt/nz-docker/init/nginx/nz-docker.conf:/etc/nginx/conf.d/default.conf -v /mnt/nz-docker/client/:/usr/share/nginx/html/  nginx:1.12.2
@@ -648,7 +1422,6 @@ docker run --name testnginx  -p 888:80  -v init/nginx/nz-docker.conf:/etc/nginx/
 #3、行动：我碰到了什么问题？
 #4、反思：什么原因？
 #5、改进：形成原则
-
 
 ├── docker-compose.yml
 ├── docker-stack.yml
@@ -725,6 +1498,87 @@ volumes:
     driver: local
 
 #链接：https://www.jianshu.com/p/24f6548de113
+#https://cloud.tencent.com/developer/article/1623379
+#https://github.com/deviantony/docker-elk
+```
+
+### logstash5 配置文件
+
+```ini
+input {
+    file {
+            path => "/var/log/httpd/access_log"
+            type => "http"
+            start_position => "beginning"
+    }
+
+    file {
+            path => "/usr/local/nginx/logs/elk.access.log"
+            type => "nginx"
+            start_position => "beginning"
+    }
+
+    file {
+            path => "/var/log/secure"
+            type => "secure"
+            start_position => "beginning"
+    }
+
+    file {
+            path => "/var/log/messages"
+            type => "system"
+            start_position => "beginning"
+    }
+}
+
+
+output {
+    if [type] == "http" {
+        redis {
+            host => "192.168.1.202"
+            password => 'test'
+            port => "6379"
+            db => "6"
+            data_type => "list"
+            key => 'nagios_http' 
+        }
+    }
+
+    if [type] == "nginx" {
+        redis {
+            host => "192.168.1.202"
+            password => 'test'
+            port => "6379"
+            db => "6"
+            data_type => "list"
+            key => 'nagios_nginx' 
+        }
+    }
+
+    if [type] == "secure" {
+        redis {
+            host => "192.168.1.202"
+            password => 'test'
+            port => "6379"
+            db => "6"
+            data_type => "list"
+            key => 'nagios_secure' 
+        }
+    }
+
+    if [type] == "system" {
+        redis {
+            host => "192.168.1.202"
+            password => 'test'
+            port => "6379"
+            db => "6"
+            data_type => "list"
+            key => 'nagios_system' 
+        }
+    }
+} 
+
+# # /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/full.conf
 ```
 
 
@@ -879,6 +1733,56 @@ GET /bank/_search?q=*&sort=account_number:asc&pretty
 
 ## ElasticSearch优化整理
 https://www.jianshu.com/p/45a15ca1114f
+```
+
+### 7.5.8 py es api
+
+```sh
+#pip3 install elasticsearch
+#https://www.cnblogs.com/xiao987334176/p/10130712.html
+from elasticsearch import Elasticsearch
+es = Elasticsearch(['10.10.13.12'], http_auth=('xiao', '123456'), timeout=3600)
+
+es.search(index='logstash-2015.08.20', q='http_status_code:5* AND server_name:"web1"', from_='124119')
+```
+
+
+
+## 7.6 cdh - docker
+
+```ini
+## https://www.cnblogs.com/piperck/p/9917118.html
+https://www.cnblogs.com/piperck/p/9917118.html
+https://downloads.cloudera.com/demo_vm/docker/cloudera-quickstart-vm-5.13.0-0-beta-docker.tar.gz
+```
+
+
+
+## 7.16 prometheus - docker
+
+```sh
+##
+```
+
+
+
+### 7.16.8 py prom api
+
+```sh
+##
+```
+
+#### py alert api
+
+```sh
+##
+GET /-/healthy 
+GET /-/ready  
+POST /-/reload
+
+curl -u monitor:fosafer.com 127.0.0.1:9093/-/healthy
+curl -XPOST   127.0.0.1:9093/-/reload
+curl -XPOST -u monitor:fosafer.com 127.0.0.1:9093/-/reload
 ```
 
 
@@ -1080,7 +1984,65 @@ max(prometheus_http_request_duration_seconds_count{instance="129.211.99.141:9090
 max_over_time(prometheus_http_request_duration_seconds_count{instance="129.211.99.141:9090"}[2m])
 ```
 
+## 8.5 Grafana 
+
+```ini
+常用模板编号：
+node-exporter: cn/8919,en/11074
+k8s: 13105
+docker: 12831
+alertmanager: 9578
+blackbox_exportre: 9965
+```
+
+
+
 # 九、kubernetes
+
+> [Kubernetes（k8s）中文文档 名称解释：Deployment_Kubernetes中文社区](https://www.kubernetes.org.cn/deployment)
+
+```ini
+####################
+https://zhuanlan.zhihu.com/p/53260098
+
+怎么样？是不是很神奇？
+
+所以，Docker的第二句口号就是："Build once，Run anywhere（搭建一次，到处能用）"。
+
+Docker技术的三大核心概念，分别是：
+
+镜像（Image）
+容器（Container）
+仓库（Repository）
+
+一个K8S系统，通常称为一个K8S集群（Cluster）,主要包括两个部分：
+
+一个Master节点（主节点）
+一群Node节点（计算节点）
+
+Master节点包括: API Server、Scheduler、Controller manager、etcd。
+
+API Server是整个系统的对外接口，供客户端和其它组件调用，相当于"营业厅"。
+
+Scheduler负责对集群内部的资源进行调度，相当于"调度室"。
+
+Controller manager负责管理控制器，相当于"大总管"。
+
+
+Node节点包括Docker、kubelet、kube-proxy、Fluentd、kube-dns（可选），还有就是Pod。
+
+Pod是Kubernetes最基本的操作单元。一个Pod代表着集群中运行的一个进程，它内部封装了一个或多个紧密相关的容器。除了Pod之外，K8S还有一个Service的概念，一个Service可以看作一组提供相同服务的Pod的对外访问接口。这段不太好理解，跳过吧。
+
+Docker，不用说了，创建容器的。
+
+Kubelet，主要负责监视指派到它所在Node上的Pod，包括创建、修改、监控、删除等。
+
+Kube-proxy，主要负责为Pod对象提供代理。
+
+Fluentd，主要负责日志收集、存储与查询。
+```
+
+
 
 ## 9.1 kubeadm 安装k8s
 
@@ -1423,6 +2385,16 @@ Deployment管理Pods和ReplicaSets，提供声明式更新。和老的Replicatio
 ## 000 LVS+Keepalive双机热备
 
 ```sh
+## keepalived工作原理  https://www.cnblogs.com/xiangsikai/p/8436431.html
+　　keepalived是集群管理中保证集群高可用的一个服务软件，其功能类似于heartbeat，用来防止单点故障。
+
+　　keepalived是以VRRP协议为实现基础的，VRRP全称Virtual Router Redundancy Protocol，即虚拟路由冗余协议。
+
+　　虚拟路由冗余协议，可以认为是实现路由器高可用的协议，即将N台提供相同功能的路由器组成一个路由器组，这个组里面有一个master和多个backup，master上面有一个对外提供服务的vip（该路由器所在局域网内其他机器的默认路由为该vip），master会发组播，当backup收不到vrrp包时就认为master宕掉了，这时就需要根据VRRP的优先级来选举一个backup当master。这样的话就可以保证路由器的高可用了。
+
+　　keepalived主要有三个模块，分别是core、check和vrrp。core模块为keepalived的核心，负责主进程的启动、维护以及全局配置文件的加载和解析。check负责健康检查，包括常见的各种检查方式。vrrp模块是来实现VRRP协议的。
+
+
 ## 安装keepalived
 yum -y install keepalived* ipvsadm
 ## 加载内核模块
@@ -1476,13 +2448,9 @@ virtual_server 192.168.31.200 80 {
     }
 }
 
-```
 
-#### 启动keepalived
-
-```
-systemctl restart keepalivedsystemctl enable keepalived
-
+## 启动keepalived
+systemctl restart keepalived && systemctl enable keepalived
 ```
 
 ## 001 haproxy+keepalived 基于四层
@@ -1525,56 +2493,42 @@ https://www.cnblogs.com/xiao987334176/p/13074198.html
 https://www.cnblogs.com/xiao987334176/p/12376980.html
 
 ## 006 基于docker 搭建Prometheus+Grafana
-
- https://www.cnblogs.com/xiao987334176/p/9930517.html
-
+```ini
+https://www.cnblogs.com/xiao987334176/p/9930517.html
+## 几点思考
+1、node 主机的自动发现，端口自动发现
+2、redis 自动发现
+3、mysql 自动发现
+4、alertmanager 
+```
 
 
 # 附： tips
 
-## 001 python多线/进程
-
-> 在 Python 3.2 以后，concurrent.futures是内置的模块，我们可以直接使用。 如果你需要在 Python 2.7 中使用 concurrent.futures , 那么请用 pip 进行安装，
->
-> pip install futures
+## 001 时间格式化
 
 ```python
-## https://www.cnblogs.com/huchong/p/7459324.html
+import datetime
+#获得当前时间
+now = datetime.datetime.now()  ->这是时间数组格式
+#转换为指定的格式:
+otherStyleTime = now.strftime("%Y%m%d_%H%M%S")
 
-from concurrent.futures import ProcessPoolExecutor
-import os,time,random
-def task(n):
-    print('%s is running' %os.getpid())
-    time.sleep(2)
-    return n**2
+import time
+now_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
-if __name__ == '__main__':
-    p=ProcessPoolExecutor()  #不填则默认为cpu的个数
-    l=[]
-    start=time.time()
-    for i in range(10):
-        obj=p.submit(task,i)   #submit()方法返回的是一个future实例，要得到结果需要用obj.result()
-        l.append(obj)
-        p.shutdown()        #类似用from multiprocessing import Pool实现进程池中的close及join一起的作用
-        print('='*30)    # print([obj for obj in l])
-        print([obj.result() for obj in l])
-    print(time.time()-start)
-    
-    #上面方法也可写成下面的方法
-    # start = time.time()
-    # with ProcessPoolExecutor() as p:   #类似打开文件,可省去.shutdown()
-    #     future_tasks = [p.submit(task, i) for i in range(10)]
-    # print('=' * 30)
-    # print([obj.result() for obj in future_tasks])
-    # print(time.time() - start)
-
+## bash
+Now_Time=`(date +%Y%m%d%H%M%S)`
+NowStamp=`(date +%s)`
+echo "当前时间和当前时间戳" $Now_Time $NowStamp
 ```
 
 ## 002 check_url.sh
 
 ```sh
 #!/bin/bash
-##################################################### Author: channel
+####################################################
+# Author: channel
 # Github: https://github.com/yes5144
 # Time: 2018-03-10 16:05:56# Version: V1.0
 # Description: This is just a test scripts
@@ -1817,27 +2771,123 @@ tcpdump -i eth0 -s 0 -l -w - |strings
 
 tcpdump -i ens33  host gc.hgame.com
 tcpdump -i eth0 -s 0 -l -w a.pcap src host 192.168.2.191 or dst host 192.168.2.191 
+
+####
+## 1.3 常用场景
+
+### 1、获取10.1.85.21和10.1.85.19之间的通信，使用命令注意转义符号。
+tcpdump host 10.1.85.21 and \( 10.1.85.19\) -i ens5f0 -nn -c 10
+
+### 2、获取从10.1.85.21发来的包。
+tcpdump src host 10.1.85.21 -c 10 -i ens5f1
+
+### 3、监听tcp（udp）端口。
+tcpdump tcp port 22 -c 10
+
+### 4、获取主机10.1.85.21和除10.1.85.19之外所有主机的通信。
+tcpdump ip host 10.1.85.21 and ! 10.1.85.19 -c 10 -i any
+
+### 5、获取从10.1.85.19且端口主机到10.1.85.21主机的通信。
+
+tcpdump src host 10.1.85.19 and src port 48565 and dst host 10.1.85.21 and dst port 5090 -i any -c 10 -nn
+
+
+#################3
+### 6、抓取所有经过 en0，目的或源地址是 10.37.63.255 的网络数据：
+tcpdump -i en0 host 10.37.63.255
+
+### 7、抓取主机10.37.63.255和主机10.37.63.61或10.37.63.95的通信：
+tcpdump host 10.37.63.255 and \(10.37.63.61 or 10.37.63.95 \)
+
+### 8、抓取主机192.168.13.210除了和主机10.37.63.61之外所有主机通信的数据包：
+tcpdump -n host 10.37.63.255 and ! 10.37.63.61
+
+### 9、抓取主机10.37.63.255除了和主机10.37.63.61之外所有主机通信的ip包
+tcpdump ip -n host 10.37.63.255 and ! 10.37.63.61
+
+### 10、抓取主机10.37.63.3发送的所有数据：
+tcpdump -i en0 src host 10.37.63.3 （注意数据流向）
+
+### 11、抓取主机10.37.63.3接收的所有数据：
+tcpdump -i en0 dst host 10.37.63.3 （注意数据流向） 
+
+### 12、抓取主机10.37.63.3所有在TCP 80端口的数据包：
+tcpdump -i en0 host 10.37.63.3 and tcp port 80
+
+### 13、抓取HTTP主机10.37.63.3在80端口接收到的数据包：
+tcpdump -i en0 host 10.37.63.3 and dst port 80
+
+### 14、抓取所有经过 en0，目的或源端口是 25 的网络数据
+tcpdump -i en0 port 25
+tcpdump -i en0 src port 25 # 源端口
+tcpdump -i en0 dst port 25网络过滤 # 目的端口
+
+### 15、抓取所有经过 en0，网络是 192.168上的数据包
+tcpdump -i en0 net 192.168
+tcpdump -i en0 src net 192.168
+tcpdump -i en0 dst net 192.168
+tcpdump -i en0 net 192.168.1
+tcpdump -i en0 net 192.168.1.0/24
+
+### 16、协议过滤
+tcpdump -i en0 arp
+tcpdump -i en0 ip
+tcpdump -i en0 tcp
+tcpdump -i en0 udp
+tcpdump -i en0 icmp
+
+### 17、抓取所有经过 en0，目的地址是 192.168.1.254 或 192.168.1.200 端口是 80 的 TCP 数据
+tcpdump -i en0 '((tcp) and (port 80) and ((dst host 192.168.1.254) or (dst host 192.168.1.200)))'
+
+### 18、抓取所有经过 en0，目标 MAC 地址是 00:01:02:03:04:05 的 ICMP 数据
+tcpdump -i eth1 '((icmp) and ((ether dst host 00:01:02:03:04:05)))'
+
+### 19、抓取所有经过 en0，目的网络是 192.168，但目的主机不是 192.168.1.200 的 TCP 数据
+tcpdump -i en0 '((tcp) and ((dst net 192.168) and (not dst host 192.168.1.200)))'
+
+### 20、只抓 SYN 包
+tcpdump -i en0 'tcp[tcpflags] = tcp-syn'
+
+### 21、抓 SYN, ACK
+tcpdump -i en0 'tcp[tcpflags] & tcp-syn != 0 and tcp[tcpflags] & tcp-ack != 0'
+
+### 22、抓 SMTP 数据，抓取数据区开始为"MAIL"的包，"MAIL"的十六进制为 0x4d41494c
+tcpdump -i en0 '((port 25) and (tcp[(tcp[12]>>2):4] = 0x4d41494c))'
+
+### 23、抓 HTTP GET 数据，"GET "的十六进制是 0x47455420
+tcpdump -i en0 'tcp[(tcp[12]>>2):4] = 0x47455420'
+
+# 0x4745 为"GET"前两个字母"GE",0x4854 为"HTTP"前两个字母"HT"
+tcpdump  -XvvennSs 0 -i en0 tcp[20:2]=0x4745 or tcp[20:2]=0x4854
+
+### 24、抓 SSH 返回，"SSH-"的十六进制是 0x5353482D
+tcpdump -i en0 'tcp[(tcp[12]>>2):4] = 0x5353482D'
+
+# 抓老版本的 SSH 返回信息，如"SSH-1.99.."
+tcpdump -i en0 '(tcp[(tcp[12]>>2):4] = 0x5353482D) and (tcp[((tcp[12]>>2)+4):2] = 0x312E)'
+
+### 25、抓 DNS 请求数据
+tcpdump -i en0 udp dst port 53
+
+### 26、用-c 参数指定抓多少个包
+time tcpdump -nn -i en0 'tcp[tcpflags] = tcp-syn' -c 10000 > /dev/null
+
+上面的命令计算抓 10000 个 SYN 包花费多少时间，可以判断访问量大概是多少。
+
+### 27、实时抓取端口号8000的GET包，然后写入GET.log
+tcpdump -i en0 '((port 8000) and (tcp[(tcp[12]>>2):4]=0x47455420))' -nnAl -w /tmp/GET.log
+
+作者：道无虚
+链接：https://www.jianshu.com/p/23427a80fc9d
+
+作者：猿码架构
+链接：https://www.jianshu.com/p/a62ed1bb5b20
+
 ```
 
 
 
-## 006 时间格式化
-
-```python
-import datetime
-#获得当前时间
-now = datetime.datetime.now()  ->这是时间数组格式
-#转换为指定的格式:
-otherStyleTime = now.strftime("%Y%m%d_%H%M%S")
-
-import time
-now_time = time.strftime('%Y-%m-%d %H:%M:%S')
-
-## bash
-Now_Time=`(date +%Y%m%d%H%M%S)`
-NowStamp=`(date +%s)`
-echo "当前时间和当前时间戳" $Now_Time $NowStamp
-```
+## 006
 
 ## 007 压测
 ### 007 redis压测
@@ -1905,7 +2955,7 @@ swapon -a
 free -m
 ```
 
-## 009 端口预留
+## 009 Linux端口预留
 
 ```sh
 # 预留端口避免占用ip_local_reserved_ports
@@ -2078,24 +3128,7 @@ logrotate-3.7.8-26.el6_7.x86_64
 
 
 
-## 016 jvm内存优化
-
-```ini
-
-堆(Heap)和非堆(Non-heap)内存
-    按照官方的说法：“Java 虚拟机具有一个堆，堆是运行时数据区域，所有类实例和数组的内存均从此处分配。堆是在 Java 虚拟机启动时创建的。”“在JVM中堆之外的内存称为非堆内存(Non-heap memory)”。可以看出JVM主要管理两种类型的内存：堆和非堆。简单来说堆就是Java代码可及的内存，是留给开发人员使用的；非堆就是JVM留给 自己用的，所以方法区、JVM内部处理或优化所需的内存(如JIT编译后的代码缓存)、每个类结构(如运行时常数池、字段和方法数据)以及方法和构造方法 的代码都在非堆内存中。
-堆内存分配
-    JVM初始分配的内存由-Xms指定，默认是物理内存的1/64；JVM最大分配的内存由-Xmx指 定，默认是物理内存的1/4。默认空余堆内存小于40%时，JVM就会增大堆直到-Xmx的最大限制；空余堆内存大于70%时，JVM会减少堆直到 -Xms的最小限制。因此服务器一般设置-Xms、-Xmx相等以避免在每次GC 后调整堆的大小。
-非堆内存分配
-    JVM使用-XX:PermSize设置非堆内存初始值，默认是物理内存的1/64；由XX:MaxPermSize设置最大非堆内存的大小，默认是物理内存的1/4。
-JVM内存限制(最大值)
-    首先JVM内存限制于实际的最大物理内存(废话！呵呵)，假设物理内存无限大的话，JVM内存的最大值跟操作系统有很大的关系。简单的说就32位处理器虽然 可控内存空间有4GB,但是具体的操作系统会给一个限制，这个限制一般是2GB-3GB（一般来说Windows系统下为1.5G-2G，Linux系统 下为2G-3G），而64bit以上的处理器就不会有限制了。
-    
-https://blog.csdn.net/cutesource/article/details/5907418
-## tomcat优化
-https://www.cnblogs.com/jojoword/p/10835112.html
-```
-
+## 016 xxx
 
 
 
@@ -2129,8 +3162,9 @@ git log  --pretty="%h"  -2
 ## 020 访问url 分阶段展示耗时
 
 ```sh
-# https://github.com/reorx/httpstat
-#wget https://raw.githubusercontent.com/reorx/httpstat/master/httpstat.py
+# https://github.com/reorx/httpstat 
+# 以前遇到了一台服务器请求某个api很慢，怀疑是dns但是没有证据，这下让他无处遁形
+# wget https://raw.githubusercontent.com/reorx/httpstat/master/httpstat.py
 pip install httpstat
 python httpstat.py httpbin.org/get
 
@@ -2153,40 +3187,23 @@ https://github.com/kennethreitz-archive/records
 
 
 
-## 022 vue动态菜单
+## 022 InnoDB 和MyISAM 不同点
 
-```javascript
-## https://www.cnblogs.com/woai3c/p/11052975.html
+```ini
+MyISAM与InnoDB 的区别（9个不同点）
 
-    <!-- 动态菜单 -->
-    <div v-for="(item, index) in menuItems" :key="index">
-        <Submenu v-if="item.children" :name="index">
-            <template slot="title">
-                <Icon :size="item.size" :type="item.type"/>
-                <span v-show="isShowAsideTitle">{{item.text}}</span>
-            </template>
-            <div v-for="(subItem, i) in item.children" :key="index + i">
-                <Submenu v-if="subItem.children" :name="index + '-' + i">
-                    <template slot="title">
-                        <Icon :size="subItem.size" :type="subItem.type"/>
-                        <span v-show="isShowAsideTitle">{{subItem.text}}</span>
-                    </template>
-                    <MenuItem class="menu-level-3" v-for="(threeItem, k) in subItem.children" :name="threeItem.name" :key="index + i + k">
-                        <Icon :size="threeItem.size" :type="threeItem.type"/>
-                        <span v-show="isShowAsideTitle">{{threeItem.text}}</span>
-                    </MenuItem>
-                </Submenu>
-                <MenuItem v-else v-show="isShowAsideTitle" :name="subItem.name">
-                    <Icon :size="subItem.size" :type="subItem.type"/>
-                    <span v-show="isShowAsideTitle">{{subItem.text}}</span>
-                </MenuItem>
-            </div>
-        </Submenu>
-        <MenuItem v-else :name="item.name">
-            <Icon :size="item.size" :type="item.type" />
-            <span v-show="isShowAsideTitle">{{item.text}}</span>
-        </MenuItem>
-    </div>
+1. InnoDB支持事务，MyISAM不支持，对于InnoDB每一条SQL语言都默认封装成事务，自动提交，这样会影响速度，所以最好把多条SQL语言放在begin和commit之间，组成一个事务； 
+
+2. InnoDB支持外键，而MyISAM不支持。对一个包含外键的InnoDB表转为MYISAM会失败
+5. Innodb不支持全文索引，而MyISAM支持全文索引，在涉及全文索引领域的查询效率上MyISAM速度更快高；PS：5.7以后的InnoDB支持全文索引了
+
+6. MyISAM表格可以被压缩后进行查询操作
+7. InnoDB支持表、行(默认)级锁，而MyISAM支持表级锁
+8、InnoDB表必须有主键（用户没有指定的话会自己找或生产一个主键），而Myisam可以没有
+9、Innodb存储文件有frm、ibd，而Myisam是frm、MYD、MYI
+        Innodb：frm是表定义文件，ibd是数据文件
+        Myisam：frm是表定义文件，myd是数据文件，myi是索引文件
+
 ```
 
 
@@ -2207,14 +3224,58 @@ update mysql.user set authentication_string=password('123qwe') where user='root'
 
 
 
+## 024  MySQL审计 yearning
 
-## 024 
+```ini
+## https://www.jianshu.com/p/c9c3aaaf6e0b
+```
 
 
-## 025
+
+## 025 Waiting for table flush 阻塞查询的问题
+
+```ini
+## https://blog.csdn.net/donghaixiaolongwang/article/details/76099697
+2、易引发这种情况的操作
+慢查询+FLUSH TABLES tbl_name, ALTER TABLE, RENAME TABLE, REPAIR TABLE, ANALYZE TABLE, orOPTIMIZE TABLE  这些操作。
+
+例如：比如在mysqldump、innobackupex进行备份时就很有可能引发这种情况。
+
+3、解决方案
+找出慢查询kill掉，并进行SQL优化防止再次引发。
+
+4、预防措施
+在业务高峰期不要对数据库进行FLUSH TABLES tbl_name, ALTER TABLE, RENAME TABLE, REPAIR TABLE, ANALYZE TABLE, orOPTIMIZE TABLE 这些操作。
+
+备份、DDL语句等操作尽量避开业务高峰。
+### 
+SELECT CONCAT('kill  ',id,';') from PROCESSLIST WHERE state ='updating' and (info like "%xxxx_server_info%" and info like "update%") limit 50
+```
 
 
-## 026
+
+## 026 mysql时间
+
+```ini
+## 1、当前日期
+select DATE_SUB(curdate(),INTERVAL 0 DAY) ;
+## 2、明天日期
+select DATE_SUB(curdate(),INTERVAL -1 DAY) ;
+## 3、昨天日期
+select DATE_SUB(curdate(),INTERVAL 1 DAY) ;
+## 4、前一个小时时间
+select date_sub(now(), interval 1 hour);
+## 5、后一个小时时间
+select date_sub(now(), interval -1 hour);
+## 6、前30分钟时间
+select date_add(now(),interval -30 minute)
+## 7、后30分钟时间
+select date_add(now(),interval 30 minute)
+## 8、取得当天：
+SELECT curdate();
+```
+
+
 
 
 ## 027
@@ -2304,12 +3365,49 @@ https://www.yuque.com/ant-design/course/wybhm9
 ## gin
 https://book.eddycjy.com/golang/gin/log.html
 
+## vue
+https://github.com/opendigg/awesome-github-vue
 ```
 
 
 
+## 051 vue动态菜单
 
-## 051
+```javascript
+## https://www.cnblogs.com/woai3c/p/11052975.html
+
+    <!-- 动态菜单 -->
+    <div v-for="(item, index) in menuItems" :key="index">
+        <Submenu v-if="item.children" :name="index">
+            <template slot="title">
+                <Icon :size="item.size" :type="item.type"/>
+                <span v-show="isShowAsideTitle">{{item.text}}</span>
+            </template>
+            <div v-for="(subItem, i) in item.children" :key="index + i">
+                <Submenu v-if="subItem.children" :name="index + '-' + i">
+                    <template slot="title">
+                        <Icon :size="subItem.size" :type="subItem.type"/>
+                        <span v-show="isShowAsideTitle">{{subItem.text}}</span>
+                    </template>
+                    <MenuItem class="menu-level-3" v-for="(threeItem, k) in subItem.children" :name="threeItem.name" :key="index + i + k">
+                        <Icon :size="threeItem.size" :type="threeItem.type"/>
+                        <span v-show="isShowAsideTitle">{{threeItem.text}}</span>
+                    </MenuItem>
+                </Submenu>
+                <MenuItem v-else v-show="isShowAsideTitle" :name="subItem.name">
+                    <Icon :size="subItem.size" :type="subItem.type"/>
+                    <span v-show="isShowAsideTitle">{{subItem.text}}</span>
+                </MenuItem>
+            </div>
+        </Submenu>
+        <MenuItem v-else :name="item.name">
+            <Icon :size="item.size" :type="item.type" />
+            <span v-show="isShowAsideTitle">{{item.text}}</span>
+        </MenuItem>
+    </div>
+```
+
+
 
 
 ## 052
@@ -2386,7 +3484,75 @@ https://www.cnblogs.com/CheeseZH/p/5260560.html
 在讲is和==这两种运算符区别之前，首先要知道Python中对象包含的三个基本要素，分别是：id(身份标识)、type(数据类型)和value(值)。
 1, is 是进行id的比较，== 是进行value的比较。
 2, 只有数值型情况下is和==可通用，当字符串中包含非数字或字母字符时，值比较就不能用is只能用==了。
+
+我们在检查 a is b 的时候，其实相当于检查 id(a) == id(b)。而检查 a == b 的时候，实际是调用了对象 a 的 __eq()__ 方法，a == b 相当于 a.__eq__(b)。
+
+Python里和None比较时，为什么是 is None 而不是 == None 呢？
+
+这是因为None在Python里是个单例对象，一个变量如果是None，它一定和None指向同一个内存地址。而 == None背后调用的是__eq__，而__eq__可以被重载，下面是一个 is not None但 == None的例子
+
+连接字符串的时候可以用join也可以用+，但这两者有没有区别呢？
+join的性能明显好于+。这是为什么呢？
+而join在连接字符串的时候，会先计算需要多大的内存存放结果，然后一次性申请所需内存并将字符串复制过去，这是为什么join的性能优于+的原因。所以在连接字符串数组的时候，我们应考虑优先使用join。
+
+https://zhuanlan.zhihu.com/p/93775624
 ```
+
+#### 061 python 深浅拷贝
+
+```ini
+浅拷贝和深拷贝的区别是：浅拷贝只是将原对象在内存中引用地址拷贝
+
+而深拷贝是将这个对象的所有内容拷贝过来了，包括值与内存地址
+```
+
+
+
+#### 061 python闭包
+
+```python
+# http://c.biancheng.net/view/5335.html
+不过使用闭包，可以让程序变得更简洁易读。
+# https://zhuanlan.zhihu.com/p/22229197
+闭包：就是在一个外函数中定义了一个内函数，内函数里运用了外函数的临时变量，并且 外函数的返回值是内函数的引用。
+闭包概念：在一个内部函数中，对外部作用域的变量进行引用，(并且一般外部函数的返回值为内部函数)，那么内部函数就被认为是闭包。
+flist =[]
+for i in xrange(3):
+    def func(x):
+        return x*i
+    first.append(func)
+
+for f in flist:
+    print(f(2))
+
+# 2
+flist=[]
+for i in xrange(3):
+    def makefunc(i):
+        def func(x):
+            return x*i
+        return func
+    flist.append(makefunc(i))
+
+for f in flist:
+    print(f(2))
+
+    
+装饰器(本质就是闭包)：主要作用为已经存在的对象添加额外的功能，例如日志记录、数据校验等。
+```
+
+#### 061 python 生成器和迭代器
+
+```ini
+
+## 列表推导式
+
+## django 字典推导式
+kwargs ={key: request.POST.get(key) for key in ("motto","region","pic") if request.POST.get(key)}
+
+```
+
+
 
 #### 061 python 魔法
 
@@ -2405,14 +3571,113 @@ dd
 
 
 
+## 062 python 模块
 
-## 062
+```python
+## 
+```
+#### 062 python多线/进程
+
+> 在 Python 3.2 以后，concurrent.futures是内置的模块，我们可以直接使用。 如果你需要在 Python 2.7 中使用 concurrent.futures , 那么请用 pip 进行安装，
+>
+> pip install futures
+
+```python
+## https://www.cnblogs.com/huchong/p/7459324.html
+
+from concurrent.futures import ProcessPoolExecutor
+import os,time,random
+def task(n):
+    print('%s is running' %os.getpid())
+    time.sleep(2)
+    return n**2
+
+if __name__ == '__main__':
+    p=ProcessPoolExecutor()  #不填则默认为cpu的个数
+    l=[]
+    start=time.time()
+    for i in range(10):
+        obj=p.submit(task,i)   #submit()方法返回的是一个future实例，要得到结果需要用obj.result()
+        l.append(obj)
+        p.shutdown()        #类似用from multiprocessing import Pool实现进程池中的close及join一起的作用
+        print('='*30)    # print([obj for obj in l])
+        print([obj.result() for obj in l])
+    print(time.time()-start)
+    
+    #上面方法也可写成下面的方法
+    # start = time.time()
+    # with ProcessPoolExecutor() as p:   #类似打开文件,可省去.shutdown()
+    #     future_tasks = [p.submit(task, i) for i in range(10)]
+    # print('=' * 30)
+    # print([obj.result() for obj in future_tasks])
+    # print(time.time() - start)
+
+```
+
+#### 062 re模块
+
+```python
+## re
+import re
+b = "<p>我是测试文本<br/></p><p>我是测试文本\n  \n<br/></p>"
+c = re.sub('<[^<]+?>', '', b).replace('\n', '').strip()
+print(c)
+
+d = re.findall(r'p>(.*?)</p', b, re.S)
+print(d)
+```
 
 
-## 063
+
+## 063 API的调用
+
+```ini
+##
+```
+
+#### 063 salt-api
+
+```ini
+
+```
+
+#### 063 es-api
+
+```ini
+
+```
+
+#### 063 zabbix-api
+
+```ini
+
+```
 
 
-## 064
+
+## 064 shutil压缩处理
+
+```sh
+#shutil 对压缩包的处理是调用 ZipFile 和 TarFile 两个模块来进行的，详细：
+
+#zipfile 压缩解压
+# https://www.cnblogs.com/xiangsikai/p/7787101.html
+
+import zipfile
+
+# 压缩
+z = zipfile.ZipFile('laxi.zip', 'w')
+z.write('a.log')
+z.write('data.data')
+z.close()
+
+# 解压
+z = zipfile.ZipFile('laxi.zip', 'r')
+z.extractall()
+z.close()
+```
+
+
 
 
 ## 065
@@ -2480,10 +3745,40 @@ https://www.cnblogs.com/majianguo/p/8186429.html
 ## 079
 
 
-## 080
+## 080  jvm内存优化
+
+```ini
+
+堆(Heap)和非堆(Non-heap)内存
+    按照官方的说法：“Java 虚拟机具有一个堆，堆是运行时数据区域，所有类实例和数组的内存均从此处分配。堆是在 Java 虚拟机启动时创建的。”“在JVM中堆之外的内存称为非堆内存(Non-heap memory)”。可以看出JVM主要管理两种类型的内存：堆和非堆。简单来说堆就是Java代码可及的内存，是留给开发人员使用的；非堆就是JVM留给 自己用的，所以方法区、JVM内部处理或优化所需的内存(如JIT编译后的代码缓存)、每个类结构(如运行时常数池、字段和方法数据)以及方法和构造方法 的代码都在非堆内存中。
+堆内存分配
+    JVM初始分配的内存由-Xms指定，默认是物理内存的1/64；JVM最大分配的内存由-Xmx指 定，默认是物理内存的1/4。默认空余堆内存小于40%时，JVM就会增大堆直到-Xmx的最大限制；空余堆内存大于70%时，JVM会减少堆直到 -Xms的最小限制。因此服务器一般设置-Xms、-Xmx相等以避免在每次GC 后调整堆的大小。
+非堆内存分配
+    JVM使用-XX:PermSize设置非堆内存初始值，默认是物理内存的1/64；由XX:MaxPermSize设置最大非堆内存的大小，默认是物理内存的1/4。
+JVM内存限制(最大值)
+    首先JVM内存限制于实际的最大物理内存(废话！呵呵)，假设物理内存无限大的话，JVM内存的最大值跟操作系统有很大的关系。简单的说就32位处理器虽然 可控内存空间有4GB,但是具体的操作系统会给一个限制，这个限制一般是2GB-3GB（一般来说Windows系统下为1.5G-2G，Linux系统 下为2G-3G），而64bit以上的处理器就不会有限制了。
+    
+https://blog.csdn.net/cutesource/article/details/5907418
+## tomcat优化
+https://www.cnblogs.com/jojoword/p/10835112.html
+```
 
 
-## 081
+## 081  jar Illegal key size
+
+```ini
+报错描述：java.security.InvalidKeyException: Illegal key size
+原因分析：JRE中自带的“local_policy.jar ”和“US_export_policy.jar”是支持128位密钥的加密算法，而当我们要使用256位密钥算法的时候，已经超出它的范围，无法支持
+
+解决方案：1、## https://blog.csdn.net/dling8/article/details/84061948
+          2、升级jdk，比如 java version "1.8.0_74" 升级到 java version "1.8.0_261"
+
+参考链接：https://stackoverflow.com/questions/6481627/java-security-illegal-key-size-or-default-parameters
+
+摘要说明：Make sure you use the latest version of JDK/JRE.
+In my case, I had put JCE into JRE folder, but it didn't help. It happened because I was running my project from the IDE directly (using JDK).
+Then I updated my JDK and JRE to the latest version (1.8.0_211) and the problem had gone.
+```
 
 
 ## 082
@@ -2539,21 +3834,7 @@ https://help.aliyun.com/learn/tool.html
 
 ## 093
 
-## 094 jar Illegal key size
-
-```ini
-报错描述：java.security.InvalidKeyException: Illegal key size
-原因分析：JRE中自带的“local_policy.jar ”和“US_export_policy.jar”是支持128位密钥的加密算法，而当我们要使用256位密钥算法的时候，已经超出它的范围，无法支持
-
-解决方案：1、## https://blog.csdn.net/dling8/article/details/84061948
-          2、升级jdk，比如 java version "1.8.0_74" 升级到 java version "1.8.0_261"
-
-参考链接：https://stackoverflow.com/questions/6481627/java-security-illegal-key-size-or-default-parameters
-
-摘要说明：Make sure you use the latest version of JDK/JRE.
-In my case, I had put JCE into JRE folder, but it didn't help. It happened because I was running my project from the IDE directly (using JDK).
-Then I updated my JDK and JRE to the latest version (1.8.0_211) and the problem had gone.
-```
+## 094
 
 ## 095
 
@@ -2579,15 +3860,31 @@ Then I updated my JDK and JRE to the latest version (1.8.0_211) and the problem 
 
 ```
 
+#### 097 鸡汤2
+
+```ini
+“我当时没什么自信”，回忆起来那段经历，他这样说。
+既然改变已经发生了，那就尽力做好。没有自信，可以建立自信，没有武功，可以从零学起。
+
+他在“绝情谷底”总结了三条生存法则：
+1，不要多想，直接去做，反正也没有时间想别的；
+2，不敢演讲，那就多练 ，反正客户等着，不讲也不行；
+3，不断提高，那就多学，反正总有建（tiao）议（ti）和反（tu）馈（cao）。
+他为自己设立了一个目标，一周演讲两次，这样一年下来就讲了三四十次。时间长了，突然有一天，他发现自己在人前讲话不紧张了。
+
+那时感觉自己是被逼的，不过现在挺感谢逼我的人，当时在不确定的情况下我只想一件事情，那就是把手头的事情做好。做着做着就发现，原来我真的可以做的很好。
+
+自信就这么来了。这个人叫格茸扎西。
+
+作者：ThoughtWorks中国
+链接：https://www.zhihu.com/question/48406009/answer/155374291
+```
+
 
 
 ## 098 几个链接
 
 ```ini
-
-## Github上有趣的100个python项目
-https://www.jianshu.com/p/d74659727d26
-
 ## MySQL 三万字精华总结 + 面试100 问
 https://www.jianshu.com/p/24e1179ef563
 
@@ -2599,6 +3896,23 @@ https://www.jianshu.com/p/b650b5521d7d
 
 ## 当初我要是这么学习Nginx就好了！
 https://www.jianshu.com/p/e90050dc89b6
+
+## 高并发与高可用知识总结
+https://www.cnblogs.com/xuwc/p/9138585.html
+
+```
+
+#### 098 高并发
+
+```ini
+高并发架构相关概念
+https://www.cnblogs.com/-mrl/p/13234927.html
+
+高并发解决方案
+https://www.cnblogs.com/cn-sbo/p/10853469.html
+
+java高并发解决方案
+https://www.cnblogs.com/alex96/p/12152388.html
 
 ```
 
@@ -2623,3 +3937,67 @@ https://www.jianshu.com/p/d74659727d26
 ## https://github.com/Delgan/loguru
 
 ```
+
+## 100 运维技能0-1 设计落地方案
+#### 100.1 linux安全
+
+#### 100.2 linux 压测
+
+#### 100.3 nginx 动态负载均衡
+
+#### 100.4 k8s
+
+#### 100.5 salt-ssh 实现批量安装salt-minion
+
+#### 100.6 巡检模板
+
+
+
+#### yd-mongo迁移到阿里云
+
+```sh
+## 几个概念
+# databases, collection, ducument, index
+# databases, table,  record, index
+https://www.cnblogs.com/clsn/p/8244206.html
+https://www.cnblogs.com/shaosks/p/9318209.html
+
+## 备份
+mongodump -h dbhost -d dbname -o dbdirectory
+mongodump -h 192.168.1.18:27017 -d smp_maint_2 -o /opt/backup_data/mongo/momgodump
+## 恢复
+mongorestore -h dbhost -d dbname --dir dbdirectory  # xxx.bson的目录名
+mongorestore -h 192.168.1.18:27017 -d smp_maint_2_restore --dir /opt/backup_data/mongo/momgodump/test
+
+
+## 其他导入导出
+#https://www.cnblogs.com/clsn/p/8244206.html
+### 默认导出了JSON格式的数据
+mongoexport -h 10.0.0.152:27017 -uroot -proot --authenticationDatabase admin -d app -c vast -o /home/mongod/backup/vasts.dat
+
+mongoexport -h 10.0.0.152:27017 -uroot -proot --authenticationDatabase admin  -d app -c vast --type=csv -f id,name -o /home/mongod/backup/vast_csv.dat
+
+mongoimport -h 10.0.0.152:27017 -uroot -proot --authenticationDatabase admin  -d app -c vast  --drop /home/mongod/backup/vasts.dat
+
+mongoimport -h 10.0.0.152:27017 -uroot -proot --authenticationDatabase admin -d app -c vast --type=csv --headerline --file vast_csv.dat
+
+## mongoexport/mongoimport与mongodump/mongorestore的对比
+mongoexport/mongoimport导入/导出的是JSON格式，而mongodump/mongorestore导入/导出的是BSON格式。
+JSON可读性强但体积较大，BSON则是二进制文件，体积小但对人类几乎没有可读性。
+在一些mongodb版本之间，BSON格式可能会随版本不同而有所不同，所以不同版本之间用mongodump/mongorestore可能不会成功，具体要看版本之间的兼容性。当无法使用BSON进行跨版本的数据迁移的时候，使用JSON格式即mongoexport/mongoimport是一个可选项。跨版本的mongodump/mongorestore并不推荐，实在要做请先检查文档看两个版本是否兼容（大部分时候是的）。
+JSON虽然具有较好的跨版本通用性，但其只保留了数据部分，不保留索引，账户等其他基础信息。使用时应该注意。
+## 授权
+
+## 分片
+https://blog.csdn.net/tanga842428/article/details/52584770?locationNum=9&fps=1
+
+```
+
+
+
+#### yd-MySQL迁移到阿里云
+
+#### yd-传统java应用上阿里k8s
+
+#### yd-阿里云监控
+
