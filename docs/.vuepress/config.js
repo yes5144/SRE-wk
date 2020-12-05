@@ -37,6 +37,9 @@ module.exports = {
                     children: [
                         ['linux/base_cli.md', '基础命令'],
                         ['linux/system_security.md', '系统安全'],
+                        ['linux/iptables.md', 'iptables防火墙'],
+                        ['linux/regex.md', '正则表达式'],
+                        ['linux/tcpdump.md', 'tcpdump抓包'],
                         // ['linux/cli.md', '命令组合']
                     ]
                 },
@@ -58,13 +61,15 @@ module.exports = {
                         ['mysql/params2.md', '配置说明2'],
                         ['mysql/gtid主从复制.md', '基于GTID主从'],
                         ['mysql/docker主从复制.md', 'docker版主从'],
+                        ['mysql/percona-toolkit.md', 'percona-toolkit'],
                     ]
                 },
                 {
                     title: 'gitlab企业代码仓库管理',
                     collapsable: true, // 可选的, 默认值是 true,
                     children: [
-                        ['gitlab/install.md', 'gitlab安装']
+                        ['gitlab/install.md', 'gitlab安装'],
+                        ['gitlab/git.md', 'git命令入门']
                     ]
                 },
                 {
@@ -78,7 +83,8 @@ module.exports = {
                     title: 'Redis多功能nosql数据库',
                     collapsable: true, // 可选的, 默认值是 true,
                     children: [
-                        ['redis/install.md', 'Redis安装']
+                        ['redis/install.md', 'Redis安装'],
+                        ['redis/base.md', 'Redis数据类型']
                     ]
                 },
                 {
@@ -99,7 +105,16 @@ module.exports = {
                     title: 'Prometheus下一代监控系统',
                     collapsable: true, // 可选的, 默认值是 true,
                     children: [
-                        ['prometheus/install.md', 'Prometheus安装']
+                        ['prometheus/install.md', 'Prometheus安装'],
+                        ['prometheus/grafana_zabbix.md', 'grafana展示zabbix']
+                    ]
+                },
+                {
+                    title: 'ELK日志分析平台',
+                    collapsable: true, // 可选的, 默认值是 true,
+                    children: [
+                        ['elk/docker_kafka.md', 'elk-docker安装'],
+                        ['elk/install.md', 'elk-api']
                     ]
                 },
                 {
@@ -126,13 +141,16 @@ module.exports = {
                     children: [
                         ['k8s/install.md', 'k8s容器编排'],
                         ['k8s/5min.md', 'k8s命令入门'],
+                        ['k8s/k8s_cicd.md', 'k8s-cicd']
                     ]
                 },
                 {
                     title: 'golang',
                     collapsable: true, // 可选的, 默认值是 true,
                     children: [
-                        ['golang/install.md', 'golang环境安装']
+                        ['golang/install.md', 'golang环境安装'],
+                        ['golang/base.md', 'golang基础语法'],
+                        ['golang/beego.md', 'beego入门']
                     ]
                 },
                 {
